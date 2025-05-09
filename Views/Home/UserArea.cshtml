@@ -1,0 +1,46 @@
+﻿@{
+    ViewData["Title"] = "User Area";
+}
+
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>User Area</h2>
+        </div>
+        <div class="card-body">
+            <p>This area is accessible to all authenticated users.</p>
+            
+            <button id="getProfileBtn" class="btn btn-info">Get My Profile</button>
+            <div id="profileResult" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#getProfileBtn').click(function() {
+                $.ajax({
+                    url: '/api/users/profile',
+                    type: 'GET',
+                    success: function(data) {
+                        $('#profileResult').html(
+                            `<div class="alert alert-success">
+                                <p><strong>Email:</strong> ${data.email}</p>
+                                <p><strong>Role:</strong> ${data.role}</p>
+                                <p><strong>Created:</strong> ${new Date(data.createdAt).toLocaleString()}</p>
+                            </div>`
+                        );
+                    },
+                    error: function(error) {
+                        $('#profileResult').html(
+                            `<div class="alert alert-danger">
+                                Error: ${error.responseText || error.statusText}
+                            </div>`
+                        );
+                    }
+                });
+            });
+        });
+    </script>
+}

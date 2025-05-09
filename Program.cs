@@ -20,6 +20,8 @@ builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<FirestoreService>();
 builder.Services.AddSingleton<PubSubService>();
 builder.Services.AddSingleton<SecretManagerService>();
+builder.Services.AddLogging();
+builder.Services.AddControllersWithViews();
 
 // Add authentication services
 builder.Services.AddAuthentication(options =>

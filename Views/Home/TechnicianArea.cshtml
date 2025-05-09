@@ -1,0 +1,44 @@
+﻿@{
+    ViewData["Title"] = "Technician Area";
+}
+
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>Technician Area</h2>
+        </div>
+        <div class="card-body">
+            <p>This area is accessible only to technicians.</p>
+            
+            <button id="getDashboardBtn" class="btn btn-info">Get Technician Dashboard</button>
+            <div id="dashboardResult" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#getDashboardBtn').click(function() {
+                $.ajax({
+                    url: '/api/technicians/dashboard',
+                    type: 'GET',
+                    success: function(data) {
+                        $('#dashboardResult').html(
+                            `<div class="alert alert-success">
+                                ${data.message}
+                            </div>`
+                        );
+                    },
+                    error: function(error) {
+                        $('#dashboardResult').html(
+                            `<div class="alert alert-danger">
+                                Error: ${error.responseText || error.statusText}
+                            </div>`
+                        );
+                    }
+                });
+            });
+        });
+    </script>
+}
