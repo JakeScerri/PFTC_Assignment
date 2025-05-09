@@ -1,4 +1,4 @@
-﻿// In your site.js file or inline script
+﻿// site.js
 $(document).ready(function() {
     let isSubmitting = false;
 
@@ -11,7 +11,7 @@ $(document).ready(function() {
         }
 
         isSubmitting = true;
-        $('#submitButton').prop('disabled', true); // Disable the button
+        $('#submitButton').prop('disabled', true);
 
         var formData = new FormData();
         formData.append('title', $('#title').val());
@@ -45,32 +45,29 @@ $(document).ready(function() {
                 return xhr;
             },
             success: function(response) {
-                // Show success message
                 $('#submitResult').removeClass('d-none alert-danger').addClass('alert-success');
                 $('#submitResult').html('Ticket submitted successfully! You can track its status later.');
 
-                // Reset form
                 $('#ticketForm')[0].reset();
-
-                // Hide progress bar
                 $('.progress').addClass('d-none');
                 $('#uploadProgress').css('width', '0%');
 
-                // Re-enable form submission after a delay
                 setTimeout(function() {
                     isSubmitting = false;
                     $('#submitButton').prop('disabled', false);
                 }, 3000);
             },
-            error: function(error) {
-                // Show error message
+            error: function(xhr, status, error) {
+                // If unauthorized (401), redirect to login
+                if (xhr.status === 401) {
+                    window.location.href = '/api/auth/login';
+                    return;
+                }
+
                 $('#submitResult').removeClass('d-none alert-success').addClass('alert-danger');
-                $('#submitResult').text('Error submitting ticket: ' + error.responseText);
+                $('#submitResult').text('Error submitting ticket: ' + (xhr.responseText || error));
 
-                // Hide progress bar
                 $('.progress').addClass('d-none');
-
-                // Re-enable form submission
                 isSubmitting = false;
                 $('#submitButton').prop('disabled', false);
             }

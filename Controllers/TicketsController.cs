@@ -2,8 +2,10 @@
 using JakeScerriPFTC_Assignment.Models;
 using JakeScerriPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using JakeScottPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +14,7 @@ namespace JakeScerriPFTC_Assignment.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // Add this attribute to require authentication
     public class TicketsController : ControllerBase
     {
         private readonly StorageService _storageService;
@@ -33,9 +36,8 @@ namespace JakeScerriPFTC_Assignment.Controllers
         {
             try
             {
-                // For testing, use a hardcoded email
-                // In a real app, this would come from authentication
-                string userEmail = "test@example.com";
+                // Get email from authenticated user
+                string userEmail = User.FindFirstValue(ClaimTypes.Email) ?? "anonymous@example.com";
                 
                 // Ensure user exists in Firestore (AA2.1.d)
                 await _firestoreService.SaveUserAsync(userEmail);
@@ -44,7 +46,6 @@ namespace JakeScerriPFTC_Assignment.Controllers
                 var imageUrls = new List<string>();
                 if (model.Screenshots != null && model.Screenshots.Count > 0)
                 {
-                    // This is the line causing the error
                     imageUrls = await _storageService.UploadFilesAsync(model.Screenshots, userEmail);
                 }
                 
@@ -80,9 +81,9 @@ namespace JakeScerriPFTC_Assignment.Controllers
 
     public class TicketCreateModel
     {
-        public string Title { get; set; }
-        public string Description { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
         public TicketPriority Priority { get; set; }
-        public List<IFormFile> Screenshots { get; set; }
+        public List<IFormFile> Screenshots { get; set; } = new List<IFormFile>();
     }
 }

@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using Google.Cloud.Firestore;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace JakeScerriPFTC_Assignment.Models
 {

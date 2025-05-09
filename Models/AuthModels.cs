@@ -9,7 +9,7 @@ namespace JakeScerriPFTC_Assignment.Models
         public string ClientSecret { get; set; } = string.Empty;
         public string RedirectUri { get; set; } = string.Empty;
     }
-    
+
     public class GoogleUserData
     {
         public string Email { get; set; } = string.Empty;
