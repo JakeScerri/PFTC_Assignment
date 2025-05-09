@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Google.Apis.Auth;
 using JakeScottPFTC_Assignment.Services;
 
 namespace JakeScerriPFTC_Assignment.Controllers
@@ -131,7 +132,7 @@ namespace JakeScerriPFTC_Assignment.Controllers
             }
 
             return Json(new
-            {
+            {
                 isAuthenticated = true,
                 email = User.FindFirstValue(ClaimTypes.Email),
                 name = User.FindFirstValue(ClaimTypes.Name),

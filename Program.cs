@@ -4,7 +4,23 @@ using JakeScottPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 
-// Add authentication services before builder.Build()
+// First, create the builder
+var builder = WebApplication.CreateBuilder(args);
+
+// Set Google Cloud credentials path
+Environment.SetEnvironmentVariable(
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    builder.Configuration["GoogleCloud:CredentialsPath"] ?? @"E:\JakeScerriPFTC_Assignment\pftc-jake_key.json");
+
+// Add services to the container.
+builder.Services.AddControllersWithViews();
+
+// Register Google Cloud services
+builder.Services.AddSingleton<StorageService>();
+builder.Services.AddSingleton<FirestoreService>();
+builder.Services.AddSingleton<PubSubService>();
+
+// Add authentication services
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -22,25 +38,7 @@ builder.Services.AddAuthentication(options =>
 // Add authorization services
 builder.Services.AddAuthorization();
 
-// In the app configuration section, add the middleware (after UseRouting)
-app.UseAuthentication();
-app.UseAuthorization();
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Set Google Cloud credentials path
-Environment.SetEnvironmentVariable(
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    builder.Configuration["GoogleCloud:CredentialsPath"] ?? @"E:\PFTC_Assignment\JakeScerriPFTC_Assignment\pftc-jake_key.json");
-
-// Add services to the container.
-builder.Services.AddControllersWithViews();
-
-// Register Google Cloud services
-builder.Services.AddSingleton<StorageService>();
-builder.Services.AddSingleton<FirestoreService>();
-builder.Services.AddSingleton<PubSubService>();
-
+// Build the app
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -56,6 +54,8 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+// In the app configuration section, add the middleware (after UseRouting)
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
