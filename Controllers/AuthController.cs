@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Apis.Auth;
+using JakeScerriPFTC_Assignment.Services;
 using JakeScottPFTC_Assignment.Services;
 
 namespace JakeScerriPFTC_Assignment.Controllers
@@ -18,26 +19,66 @@ namespace JakeScerriPFTC_Assignment.Controllers
     [Route("api/[controller]")]
     public class AuthController : Controller
     {
-        private readonly GoogleAuthConfig _authConfig;
+        private GoogleAuthConfig _authConfig;
         private readonly IConfiguration _configuration;
         private readonly FirestoreService _firestoreService;
+        private readonly SecretManagerService _secretManagerService;
+        private readonly ILogger<AuthController> _logger;
+        private bool _secretsInitialized = false;
 
-        public AuthController(IConfiguration configuration, FirestoreService firestoreService)
+        public AuthController(
+            IConfiguration configuration,
+            FirestoreService firestoreService,
+            SecretManagerService secretManagerService,
+            ILogger<AuthController> logger)
         {
             _configuration = configuration;
             _firestoreService = firestoreService;
+            _secretManagerService = secretManagerService;
+            _logger = logger;
             
+            // Initialize with placeholder values - will be filled by InitializeSecretsAsync
             _authConfig = new GoogleAuthConfig
             {
-                ClientId = _configuration["GoogleCloud:Auth:ClientId"] ?? "",
-                ClientSecret = _configuration["GoogleCloud:Auth:ClientSecret"] ?? "",
+                ClientId = "",
+                ClientSecret = "",
                 RedirectUri = _configuration["GoogleCloud:Auth:RedirectUri"] ?? ""
             };
         }
 
-        [HttpGet("login")]
-        public IActionResult Login()
+        private async Task InitializeSecretsAsync()
         {
+            if (!_secretsInitialized)
+            {
+                try
+                {
+                    _logger.LogInformation("Loading OAuth secrets from Secret Manager");
+                    
+                    // Load secrets from Secret Manager (AA4.4.a requirement)
+                    _authConfig.ClientId = await _secretManagerService.GetSecretAsync("oauth-client-id");
+                    _authConfig.ClientSecret = await _secretManagerService.GetSecretAsync("oauth-client-secret");
+                    
+                    _secretsInitialized = true;
+                    _logger.LogInformation("OAuth secrets loaded successfully from Secret Manager");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to load OAuth secrets from Secret Manager");
+                    
+                    // Fall back to configuration values if available
+                    _authConfig.ClientId = _configuration["GoogleCloud:Auth:ClientId"] ?? "";
+                    _authConfig.ClientSecret = _configuration["GoogleCloud:Auth:ClientSecret"] ?? "";
+                    
+                    _logger.LogWarning("Using fallback OAuth credentials from configuration");
+                }
+            }
+        }
+
+        [HttpGet("login")]
+        public async Task<IActionResult> Login()
+        {
+            await InitializeSecretsAsync();
+            
             // Create authorization URL
             var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
             {
@@ -58,6 +99,8 @@ namespace JakeScerriPFTC_Assignment.Controllers
         {
             try
             {
+                await InitializeSecretsAsync();
+                
                 // Exchange authorization code for tokens
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
@@ -112,6 +155,7 @@ namespace JakeScerriPFTC_Assignment.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Authentication failed");
                 return StatusCode(500, $"Authentication failed: {ex.Message}");
             }
         }
