@@ -5,7 +5,6 @@ using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using JakeScerriPFTC_Assignment.Models;
 
 namespace JakeScottPFTC_Assignment.Services
 {
@@ -18,6 +17,7 @@ namespace JakeScottPFTC_Assignment.Services
         public FirestoreService(IConfiguration configuration)
         {
             string projectId = configuration["GoogleCloud:ProjectId"];
+            Console.WriteLine($"Initializing FirestoreService with project: {projectId}");
             _firestoreDb = FirestoreDb.Create(projectId);
         }
 
@@ -26,10 +26,13 @@ namespace JakeScottPFTC_Assignment.Services
         {
             try
             {
+                Console.WriteLine($"Attempting to save user: {email} with role: {role}");
+                
                 // Check if user already exists
                 User existingUser = await GetUserByEmailAsync(email);
                 if (existingUser != null)
                 {
+                    Console.WriteLine($"User {email} already exists");
                     // Update role if different
                     if (existingUser.Role != role)
                     {
@@ -47,9 +50,20 @@ namespace JakeScottPFTC_Assignment.Services
                     CreatedAt = DateTime.UtcNow
                 };
 
+                // Get a reference to the users collection
+                CollectionReference colRef = _firestoreDb.Collection(_usersCollection);
+                
+                // Create a dictionary representation of the user for more reliable Firestore saving
+                var userData = new Dictionary<string, object>
+                {
+                    { "Email", user.Email },
+                    { "Role", (int)user.Role },
+                    { "CreatedAt", user.CreatedAt }
+                };
+
                 // Save to Firestore
-                DocumentReference docRef = _firestoreDb.Collection(_usersCollection).Document(email);
-                await docRef.SetAsync(user);
+                DocumentReference docRef = colRef.Document(email);
+                await docRef.SetAsync(userData);
                 
                 Console.WriteLine($"User {email} created with role {role}");
                 return user;
@@ -57,6 +71,7 @@ namespace JakeScottPFTC_Assignment.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"Error saving user: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }
@@ -66,19 +81,41 @@ namespace JakeScottPFTC_Assignment.Services
         {
             try
             {
+                Console.WriteLine($"Getting user: {email}");
                 DocumentReference docRef = _firestoreDb.Collection(_usersCollection).Document(email);
                 DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
                 
                 if (snapshot.Exists)
                 {
-                    return snapshot.ConvertTo<User>();
+                    Console.WriteLine($"User {email} found");
+                    // Try to convert to User object
+                    try {
+                        return snapshot.ConvertTo<User>();
+                    }
+                    catch (Exception ex) {
+                        Console.WriteLine($"Error converting user: {ex.Message}");
+                        
+                        // Try manual conversion as fallback
+                        var userData = snapshot.ToDictionary();
+                        return new User {
+                            Email = email,
+                            Role = userData.ContainsKey("Role") 
+                                ? (UserRole)Convert.ToInt32(userData["Role"]) 
+                                : UserRole.User,
+                            CreatedAt = userData.ContainsKey("CreatedAt") 
+                                ? (DateTime)userData["CreatedAt"] 
+                                : DateTime.UtcNow
+                        };
+                    }
                 }
                 
+                Console.WriteLine($"User {email} not found");
                 return null;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting user: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }
@@ -88,13 +125,25 @@ namespace JakeScottPFTC_Assignment.Services
         {
             try
             {
+                Console.WriteLine($"Updating user: {user.Email}");
+                
+                // Create a dictionary representation for more reliable updating
+                var userData = new Dictionary<string, object>
+                {
+                    { "Email", user.Email },
+                    { "Role", (int)user.Role },
+                    { "CreatedAt", user.CreatedAt }
+                };
+                
                 DocumentReference docRef = _firestoreDb.Collection(_usersCollection).Document(user.Email);
-                await docRef.SetAsync(user);
+                await docRef.SetAsync(userData);
+                Console.WriteLine($"User {user.Email} updated");
                 return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error updating user: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }
@@ -104,22 +153,40 @@ namespace JakeScottPFTC_Assignment.Services
         {
             try
             {
+                Console.WriteLine("Getting technicians");
                 Query query = _firestoreDb.Collection(_usersCollection)
-                    .WhereEqualTo("Role", UserRole.Technician);
+                    .WhereEqualTo("Role", (int)UserRole.Technician);
                 
                 QuerySnapshot querySnapshot = await query.GetSnapshotAsync();
                 
                 var technicians = new List<User>();
                 foreach (DocumentSnapshot documentSnapshot in querySnapshot.Documents)
                 {
-                    technicians.Add(documentSnapshot.ConvertTo<User>());
+                    try {
+                        technicians.Add(documentSnapshot.ConvertTo<User>());
+                    }
+                    catch (Exception ex) {
+                        Console.WriteLine($"Error converting technician: {ex.Message}");
+                        
+                        // Manual conversion as fallback
+                        var userData = documentSnapshot.ToDictionary();
+                        technicians.Add(new User {
+                            Email = documentSnapshot.Id,
+                            Role = UserRole.Technician,
+                            CreatedAt = userData.ContainsKey("CreatedAt") 
+                                ? (DateTime)userData["CreatedAt"] 
+                                : DateTime.UtcNow
+                        });
+                    }
                 }
                 
+                Console.WriteLine($"Found {technicians.Count} technicians");
                 return technicians;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting technicians: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }
@@ -129,6 +196,7 @@ namespace JakeScottPFTC_Assignment.Services
         {
             try
             {
+                Console.WriteLine($"Archiving ticket: {ticket.Id}");
                 // Add technician info
                 var ticketData = new Dictionary<string, object>
                 {
@@ -138,8 +206,8 @@ namespace JakeScottPFTC_Assignment.Services
                     { "UserEmail", ticket.UserEmail },
                     { "DateUploaded", ticket.DateUploaded },
                     { "ImageUrls", ticket.ImageUrls },
-                    { "Priority", ticket.Priority },
-                    { "Status", TicketStatus.Closed },
+                    { "Priority", (int)ticket.Priority },
+                    { "Status", (int)TicketStatus.Closed },
                     { "ClosedBy", technicianEmail },
                     { "ClosedAt", DateTime.UtcNow }
                 };
@@ -153,6 +221,7 @@ namespace JakeScottPFTC_Assignment.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"Error archiving ticket: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }

@@ -1,16 +1,18 @@
-﻿// site.js
+﻿// wwwroot/js/site.js
 $(document).ready(function() {
     let isSubmitting = false;
 
     $('#ticketForm').submit(function(e) {
         e.preventDefault();
 
-        // Prevent duplicate submissions
+        // Strong prevention of duplicate submissions
         if (isSubmitting) {
+            console.log('Preventing duplicate submission');
             return false;
         }
 
         isSubmitting = true;
+        console.log('Form submission started');
         $('#submitButton').prop('disabled', true);
 
         var formData = new FormData();
@@ -45,6 +47,7 @@ $(document).ready(function() {
                 return xhr;
             },
             success: function(response) {
+                console.log('Form submission succeeded');
                 $('#submitResult').removeClass('d-none alert-danger').addClass('alert-success');
                 $('#submitResult').html('Ticket submitted successfully! You can track its status later.');
 
@@ -52,12 +55,14 @@ $(document).ready(function() {
                 $('.progress').addClass('d-none');
                 $('#uploadProgress').css('width', '0%');
 
+                // Re-enable form submission after a delay
                 setTimeout(function() {
                     isSubmitting = false;
                     $('#submitButton').prop('disabled', false);
                 }, 3000);
             },
             error: function(xhr, status, error) {
+                console.log('Form submission failed:', error);
                 // If unauthorized (401), redirect to login
                 if (xhr.status === 401) {
                     window.location.href = '/api/auth/login';
@@ -68,8 +73,18 @@ $(document).ready(function() {
                 $('#submitResult').text('Error submitting ticket: ' + (xhr.responseText || error));
 
                 $('.progress').addClass('d-none');
+
+                // Re-enable form immediately on error
                 isSubmitting = false;
                 $('#submitButton').prop('disabled', false);
+            },
+            complete: function() {
+                console.log('Form submission completed');
+                // Additional safeguard to ensure form is re-enabled
+                setTimeout(function() {
+                    isSubmitting = false;
+                    $('#submitButton').prop('disabled', false);
+                }, 5000);
             }
         });
     });
