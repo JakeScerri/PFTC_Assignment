@@ -40,15 +40,35 @@ namespace JakeScerriPFTC_Assignment.Controllers
             {
                 // Get email from authenticated user
                 string userEmail = User.FindFirstValue(ClaimTypes.Email) ?? "anonymous@example.com";
+                string userRoleClaim = User.FindFirstValue(ClaimTypes.Role);
                 
-                _logger.LogInformation($"Creating ticket for user: {userEmail}");
+                _logger.LogInformation($"Creating ticket for user: {userEmail}, role from claims: {userRoleClaim}");
                 
-                // Get the current user and their role before saving
+                // Get the current user from Firestore
                 var existingUser = await _firestoreService.GetUserByEmailAsync(userEmail);
                 
-                // Ensure user exists in Firestore with their CURRENT role preserved
-                // Pass null as the role to ensure we don't change it
-                await _firestoreService.SaveUserAsync(userEmail, existingUser?.Role);
+                // DO NOT update the user here - this avoids accidental role resets
+                // We'll just use the user for logging purposes
+                if (existingUser != null)
+                {
+                    _logger.LogInformation($"User found in Firestore with role: {existingUser.Role}");
+                }
+                else
+                {
+                    _logger.LogInformation("User not found in Firestore");
+                    
+                    // If the user doesn't exist in Firestore but has a role claim,
+                    // parse the role from the claim
+                    UserRole parsedRole = UserRole.User;
+                    if (!string.IsNullOrEmpty(userRoleClaim) && 
+                        Enum.TryParse<UserRole>(userRoleClaim, out var claimRole))
+                    {
+                        parsedRole = claimRole;
+                    }
+                    
+                    // Create the user with the role from claims
+                    await _firestoreService.SaveUserAsync(userEmail, parsedRole);
+                }
                 
                 // Upload screenshots to Cloud Storage (AA2.1.c & KU4.3.a)
                 var imageUrls = new List<string>();

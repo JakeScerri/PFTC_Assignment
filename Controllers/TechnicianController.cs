@@ -1,41 +1,105 @@
 using JakeScerriPFTC_Assignment.Models;
+using JakeScerriPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using JakeScerriPFTC_Assignment.Services;
 
 namespace JakeScerriPFTC_Assignment.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Technician")] // Only technicians can access this controller
+    [Authorize(Roles = "Technician")]
     public class TechniciansController : ControllerBase
     {
         private readonly FirestoreService _firestoreService;
+        private readonly RedisService _redisService;
         private readonly ILogger<TechniciansController> _logger;
 
-        public TechniciansController(FirestoreService firestoreService, ILogger<TechniciansController> logger)
+        public TechniciansController(
+            FirestoreService firestoreService,
+            RedisService redisService,
+            ILogger<TechniciansController> logger)
         {
             _firestoreService = firestoreService;
+            _redisService = redisService;
             _logger = logger;
         }
 
-        [HttpGet("all-tickets")]
-        public IActionResult GetAllTickets()
+        [HttpGet("tickets")]
+        public async Task<IActionResult> GetTechnicianTickets()
         {
-            // This would typically fetch all tickets from a ticket service
-            // For now, we'll just return a simple response
-            return Ok(new { message = "This would show all tickets for technicians" });
+            try
+            {
+                // KU4.1.a - Read from Redis cache for tickets
+                var tickets = await _redisService.GetTechnicianTicketsAsync();
+                
+                return Ok(new { 
+                    message = "Tickets retrieved successfully", 
+                    tickets = tickets,
+                    count = tickets.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving technician tickets");
+                return StatusCode(500, $"An error occurred: {ex.Message}");
+            }
         }
 
-        [HttpGet("dashboard")]
-        public IActionResult GetDashboard()
+        [HttpPost("tickets/{id}/close")]
+        public async Task<IActionResult> CloseTicket(string id)
         {
-            // This would show the technician dashboard
-            return Ok(new { message = "Welcome to the technician dashboard!" });
+            try
+            {
+                string technicianEmail = User.FindFirstValue(ClaimTypes.Email);
+                
+                // KU4.1.c - Close ticket and handle caching logic
+                await _redisService.CloseTicketAsync(id, technicianEmail, _firestoreService);
+                
+                return Ok(new { 
+                    message = $"Ticket {id} closed successfully"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error closing ticket {id}");
+                return StatusCode(500, $"An error occurred: {ex.Message}");
+            }
         }
-
-        // Additional endpoints for technician functionality will be added in the next subtask
+        // Add this to your TechniciansController.cs
+        [HttpGet("test-redis")]
+        public async Task<IActionResult> TestRedis()
+        {
+            try
+            {
+                // Create a test ticket
+                var testTicket = new Ticket
+                {
+                    Id = "test-" + DateTime.UtcNow.Ticks,
+                    Title = "Test Redis Ticket",
+                    Description = "Direct Redis test",
+                    Priority = TicketPriority.High,
+                    Status = TicketStatus.Open,
+                    UserEmail = User.FindFirstValue(ClaimTypes.Email),
+                    DateUploaded = DateTime.UtcNow
+                };
+        
+                // Directly save to Redis
+                await _redisService.SaveTicketAsync(testTicket);
+        
+                return Ok(new { 
+                    message = "Test ticket saved to Redis",
+                    ticketId = testTicket.Id
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving test ticket to Redis");
+                return StatusCode(500, $"Error: {ex.Message}");
+            }
+        }
     }
 }
