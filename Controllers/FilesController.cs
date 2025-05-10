@@ -2,11 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using JakeScerriPFTC_Assignment.Services;
-using JakeScottPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace JakeScottPFTC_Assignment.Controllers
+namespace JakeScerriPFTC_Assignment.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

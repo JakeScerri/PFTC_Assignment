@@ -1,4 +1,5 @@
-﻿@{
+﻿@using System.Security.Claims
+@{
     ViewData["Title"] = "Technician Area";
 }
 
@@ -9,9 +10,53 @@
         </div>
         <div class="card-body">
             <p>This area is accessible only to technicians.</p>
+            <div class="alert alert-info">
+                <strong>Note:</strong> If you can see this page, your role is "Technician" and the authorization attribute is working correctly.
+            </div>
             
-            <button id="getDashboardBtn" class="btn btn-info">Get Technician Dashboard</button>
-            <div id="dashboardResult" class="mt-3"></div>
+            <hr>
+            
+            <h4>Technician Dashboard</h4>
+            <p>This would display a dashboard of all tickets requiring technician attention.</p>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-danger text-white mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">High Priority</h5>
+                            <p class="card-text">0 tickets</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-warning text-dark mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Medium Priority</h5>
+                            <p class="card-text">0 tickets</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Low Priority</h5>
+                            <p class="card-text">0 tickets</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <h4>Close Ticket</h4>
+            <div class="input-group mb-3">
+                <input type="text" id="ticketIdInput" class="form-control" placeholder="Enter Ticket ID">
+                <button class="btn btn-outline-secondary" type="button" id="closeTicketBtn">Close Ticket</button>
+            </div>
+            
+            <div id="closeTicketResult" class="mt-3"></div>
+            
+            <a href="/" class="btn btn-secondary mt-3">Back to Home</a>
         </div>
     </div>
 </div>
@@ -19,22 +64,29 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
-            $('#getDashboardBtn').click(function() {
+            // Close ticket functionality
+            $('#closeTicketBtn').click(function() {
+                var ticketId = $('#ticketIdInput').val();
+                if (!ticketId) {
+                    $('#closeTicketResult').html(
+                        '<div class="alert alert-danger">Please enter a ticket ID</div>'
+                    );
+                    return;
+                }
+                
                 $.ajax({
-                    url: '/api/technicians/dashboard',
-                    type: 'GET',
+                    url: '/api/tickets/' + ticketId + '/close',
+                    type: 'POST',
                     success: function(data) {
-                        $('#dashboardResult').html(
-                            `<div class="alert alert-success">
-                                ${data.message}
-                            </div>`
+                        $('#closeTicketResult').html(
+                            '<div class="alert alert-success">' + data.message + '</div>'
                         );
                     },
                     error: function(error) {
-                        $('#dashboardResult').html(
-                            `<div class="alert alert-danger">
-                                Error: ${error.responseText || error.statusText}
-                            </div>`
+                        $('#closeTicketResult').html(
+                            '<div class="alert alert-danger">Error: ' + 
+                            (error.responseJSON?.message || error.responseText || error.statusText) + 
+                            '</div>'
                         );
                     }
                 });

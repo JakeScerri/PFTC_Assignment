@@ -1,6 +1,5 @@
 // Program.cs
 using JakeScerriPFTC_Assignment.Services;
-using JakeScottPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 

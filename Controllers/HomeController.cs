@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using JakeScerriPFTC_Assignment.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace JakeScerriPFTC_Assignment.Controllers;
 
@@ -19,6 +21,18 @@ public class HomeController : Controller
     }
 
     public IActionResult Privacy()
+    {
+        return View();
+    }
+
+    [Authorize]
+    public IActionResult UserArea()
+    {
+        return View();
+    }
+
+    [Authorize(Roles = "Technician")]
+    public IActionResult TechnicianArea()
     {
         return View();
     }

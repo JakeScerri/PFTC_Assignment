@@ -7,28 +7,30 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using JakeScottPFTC_Assignment.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace JakeScerriPFTC_Assignment.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Add this attribute to require authentication
+    [Authorize] // Requires authentication, but doesn't restrict by role
     public class TicketsController : ControllerBase
     {
         private readonly StorageService _storageService;
         private readonly FirestoreService _firestoreService;
         private readonly PubSubService _pubSubService;
+        private readonly ILogger<TicketsController> _logger;
 
         public TicketsController(
             StorageService storageService,
             FirestoreService firestoreService,
-            PubSubService pubSubService)
+            PubSubService pubSubService,
+            ILogger<TicketsController> logger)
         {
             _storageService = storageService;
             _firestoreService = firestoreService;
             _pubSubService = pubSubService;
+            _logger = logger;
         }
 
         [HttpPost]
@@ -39,13 +41,20 @@ namespace JakeScerriPFTC_Assignment.Controllers
                 // Get email from authenticated user
                 string userEmail = User.FindFirstValue(ClaimTypes.Email) ?? "anonymous@example.com";
                 
-                // Ensure user exists in Firestore (AA2.1.d)
-                await _firestoreService.SaveUserAsync(userEmail);
+                _logger.LogInformation($"Creating ticket for user: {userEmail}");
+                
+                // Get the current user and their role before saving
+                var existingUser = await _firestoreService.GetUserByEmailAsync(userEmail);
+                
+                // Ensure user exists in Firestore with their CURRENT role preserved
+                // Pass null as the role to ensure we don't change it
+                await _firestoreService.SaveUserAsync(userEmail, existingUser?.Role);
                 
                 // Upload screenshots to Cloud Storage (AA2.1.c & KU4.3.a)
                 var imageUrls = new List<string>();
                 if (model.Screenshots != null && model.Screenshots.Count > 0)
                 {
+                    _logger.LogInformation($"Uploading {model.Screenshots.Count} screenshots");
                     imageUrls = await _storageService.UploadFilesAsync(model.Screenshots, userEmail);
                 }
                 
@@ -61,6 +70,8 @@ namespace JakeScerriPFTC_Assignment.Controllers
                     DateUploaded = DateTime.UtcNow
                 };
                 
+                _logger.LogInformation($"Publishing ticket with priority: {ticket.Priority}");
+                
                 // Publish ticket to PubSub with priority attribute (AA2.1.a & AA2.1.b)
                 var messageId = await _pubSubService.PublishTicketAsync(ticket);
                 
@@ -74,6 +85,53 @@ namespace JakeScerriPFTC_Assignment.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error creating ticket");
+                return StatusCode(500, $"An error occurred: {ex.Message}");
+            }
+        }
+
+        [HttpGet("{id}")]
+        public IActionResult GetTicket(string id)
+        {
+            // Get current user role
+            bool isTechnician = User.IsInRole("Technician");
+            string userEmail = User.FindFirstValue(ClaimTypes.Email);
+            
+            _logger.LogInformation($"User {userEmail} (Technician: {isTechnician}) accessing ticket {id}");
+            
+            // In a real implementation, you would:
+            // 1. Fetch the ticket from database
+            // 2. Check if user is allowed to view it (technician or ticket owner)
+            
+            return Ok(new { 
+                message = $"Viewing ticket {id}",
+                userRole = isTechnician ? "Technician" : "User",
+                userEmail = userEmail
+            });
+        }
+        
+        [HttpPost("{id}/close")]
+        [Authorize(Roles = "Technician")] // Only technicians can close tickets
+        public async Task<IActionResult> CloseTicket(string id)
+        {
+            try
+            {
+                string technicianEmail = User.FindFirstValue(ClaimTypes.Email);
+                
+                _logger.LogInformation($"Technician {technicianEmail} closing ticket {id}");
+                
+                // In a real implementation, you would:
+                // 1. Fetch the ticket from cache/database
+                // 2. Update its status to Closed
+                // 3. If it's been open more than a week, archive it
+                
+                return Ok(new { 
+                    message = $"Ticket {id} closed successfully by {technicianEmail}"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error closing ticket {id}");
                 return StatusCode(500, $"An error occurred: {ex.Message}");
             }
         }

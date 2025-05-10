@@ -11,15 +11,15 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Apis.Auth;
+
 using JakeScerriPFTC_Assignment.Services;
-using JakeScottPFTC_Assignment.Services;
 
 namespace JakeScerriPFTC_Assignment.Controllers
 {
     [Route("api/[controller]")]
     public class AuthController : Controller
     {
-        private GoogleAuthConfig _authConfig;
+        private readonly GoogleAuthConfig _authConfig;
         private readonly IConfiguration _configuration;
         private readonly FirestoreService _firestoreService;
         private readonly SecretManagerService _secretManagerService;
@@ -54,12 +54,12 @@ namespace JakeScerriPFTC_Assignment.Controllers
                 {
                     _logger.LogInformation("Loading OAuth secrets from Secret Manager");
                     
-                    // Load secrets from Secret Manager (AA4.4.a requirement)
+                    // Load secrets from Secret Manager
                     _authConfig.ClientId = await _secretManagerService.GetSecretAsync("oauth-client-id");
                     _authConfig.ClientSecret = await _secretManagerService.GetSecretAsync("oauth-client-secret");
                     
                     _secretsInitialized = true;
-                    _logger.LogInformation("OAuth secrets loaded successfully from Secret Manager");
+                    _logger.LogInformation("OAuth secrets loaded successfully");
                 }
                 catch (Exception ex)
                 {
@@ -121,6 +121,27 @@ namespace JakeScerriPFTC_Assignment.Controllers
                 // Validate the token and get user info
                 var payload = await GoogleJsonWebSignature.ValidateAsync(token.IdToken);
                 
+                // Get the user's email
+                string userEmail = payload.Email;
+                
+                // Check if user exists and get their current role
+                var existingUser = await _firestoreService.GetUserByEmailAsync(userEmail);
+                UserRole role = UserRole.User; // Default role
+                
+                // If user exists, preserve their role
+                if (existingUser != null)
+                {
+                    _logger.LogInformation($"User {userEmail} already exists with role {existingUser.Role}");
+                    role = existingUser.Role;
+                }
+                else
+                {
+                    _logger.LogInformation($"User {userEmail} is new, assigning default User role");
+                }
+                
+                // Save/update user with preserved role
+                var user = await _firestoreService.SaveUserAsync(userEmail, role);
+                
                 // Create claims for authentication
                 var claims = new List<Claim>
                 {
@@ -129,12 +150,11 @@ namespace JakeScerriPFTC_Assignment.Controllers
                     new Claim("GoogleId", payload.Subject),
                     new Claim("Picture", payload.Picture ?? "")
                 };
-
-                // Save user to Firestore (default as regular user)
-                var user = await _firestoreService.SaveUserAsync(payload.Email);
                 
                 // Add role claim
                 claims.Add(new Claim(ClaimTypes.Role, user.Role.ToString()));
+                
+                _logger.LogInformation($"User {userEmail} authenticated with role {user.Role}");
 
                 // Create claims identity
                 var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

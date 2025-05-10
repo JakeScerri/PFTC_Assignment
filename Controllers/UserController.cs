@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using JakeScottPFTC_Assignment.Services;
+using JakeScerriPFTC_Assignment.Services;
 
 namespace JakeScerriPFTC_Assignment.Controllers
 {
