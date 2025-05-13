@@ -68,57 +68,36 @@ namespace JakeScerriPFTC_Assignment.Services
         }
         
         // KU4.1 - Get a ticket from PubSub for processing (mock implementation)
+        // Modified to return null instead of creating mock tickets
         public async Task<Ticket> GetNextTicketAsync()
         {
             try
             {
                 _logger.LogInformation("Getting next ticket from PubSub (mock implementation)");
                 
-                // For testing purposes, create a mock ticket
-                await Task.Delay(100); // Simulate async operation
-                
-                // Randomly decide whether to return a ticket or null (for testing)
-                if (new Random().Next(0, 4) == 0) // 25% chance of returning null
-                {
-                    _logger.LogInformation("No tickets in the queue (mock)");
-                    return null;
-                }
-                
-                // Create a mock ticket
-                var ticket = CreateMockTicket();
-                
-                _logger.LogInformation($"Retrieved ticket {ticket.Id} from PubSub (mock)");
-                return ticket;
+                // Return null to indicate no tickets are available
+                // This avoids creating mock tickets
+                _logger.LogInformation("No tickets in the queue (mock)");
+                return null;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting next ticket from PubSub");
-                // For testing, create a mock ticket
-                return CreateMockTicket();
+                return null;
             }
         }
         
         // SE4.6.a - Get tickets by priority (mock implementation)
+        // Modified to return empty list instead of mock tickets
         public async Task<List<Ticket>> GetTicketsByPriorityAsync(TicketPriority priority)
         {
             try
             {
                 _logger.LogInformation($"Getting tickets with priority: {priority} (mock implementation)");
                 
-                // Simulate async operation
-                await Task.Delay(100);
-                
-                // For testing, create 0-3 mock tickets with the requested priority
-                int count = new Random().Next(0, 4);
-                var tickets = new List<Ticket>();
-                
-                for (int i = 0; i < count; i++)
-                {
-                    tickets.Add(CreateMockTicket(priority));
-                }
-                
-                _logger.LogInformation($"Retrieved {tickets.Count} tickets with priority {priority} (mock)");
-                return tickets;
+                // Return empty list to avoid creating mock tickets
+                _logger.LogInformation($"No tickets with priority {priority} (mock)");
+                return new List<Ticket>();
             }
             catch (Exception ex)
             {
@@ -127,7 +106,7 @@ namespace JakeScerriPFTC_Assignment.Services
             }
         }
         
-        // Create a mock ticket for testing
+        // Keep this method for internal use
         private Ticket CreateMockTicket(TicketPriority? priority = null)
         {
             TicketPriority ticketPriority = priority ?? (TicketPriority)new Random().Next(0, 3);

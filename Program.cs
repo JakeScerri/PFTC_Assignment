@@ -19,10 +19,26 @@ builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<FirestoreService>();
 builder.Services.AddSingleton<PubSubService>();
 builder.Services.AddSingleton<SecretManagerService>();
-builder.Services.AddSingleton<RedisService>();
+
+// Register Redis service based on environment
+if (builder.Environment.IsDevelopment())
+{
+    // Use mock Redis in development
+    builder.Services.AddSingleton<IRedisService, MockRedisService>();
+    builder.Services.AddLogging(logging =>
+    {
+        logging.AddConsole();
+        logging.AddDebug();
+    });
+}
+else
+{
+    // Use real Redis in production
+    builder.Services.AddSingleton<IRedisService, RedisService>();
+}
+
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<TicketProcessorService>();
-builder.Services.AddLogging();
 builder.Services.AddControllersWithViews();
 
 // Add authentication services with enhanced configuration

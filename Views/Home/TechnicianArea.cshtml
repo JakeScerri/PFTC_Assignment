@@ -1,52 +1,87 @@
-﻿@using System.Security.Claims
-@{
+﻿@{
     ViewData["Title"] = "Technician Area";
 }
 
-<div class="container mt-4">
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h2>Technician Area</h2>
+<h1>Technician Area</h1>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                Process Tickets
+            </div>
+            <div class="card-body">
+                <p>Manually trigger ticket processing to move tickets from PubSub to Redis cache.</p>
+                <button id="process-tickets" class="btn btn-success">Process Tickets</button>
+                <div id="process-result" class="mt-3"></div>
+            </div>
         </div>
-        <div class="card-body">
-            <p>This area is accessible only to technicians.</p>
-            <div class="alert alert-info">
-                <strong>Note:</strong> If you can see this page, your role is "Technician" and the authorization attribute is working correctly.
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                Redis Status
             </div>
-            
-            <hr>
-            
-            <h4>Process Tickets</h4>
-            <p>Manually trigger ticket processing to move tickets from PubSub to Redis cache.</p>
-            <div class="mb-3">
-                <button id="processTicketsBtn" class="btn btn-primary">Process Tickets</button>
-                <button id="testRedisBtn" class="btn btn-secondary ms-2">Test Redis Directly</button>
+            <div class="card-body">
+                <button id="check-redis" class="btn btn-info">Check Redis Connection</button>
+                <div id="redis-status" class="mt-3"></div>
+                
+                <hr>
+                
+                <h5>Redis Management</h5>
+                <button id="test-redis" class="btn btn-primary">Create Real Test Ticket</button>
+                <button id="clear-mock-tickets" class="btn btn-danger ml-2">Clear All Mock Tickets</button>
+                <div id="test-result" class="mt-3"></div>
             </div>
-            <div id="processResult" class="mb-3"></div>
-            
-            <hr>
-            
-            <h4>Technician Dashboard</h4>
-            <div class="row">
-                <div class="col-md-12">
-                    <button id="loadTicketsBtn" class="btn btn-info mb-3">Load Tickets</button>
-                    <div id="ticketsContainer">
-                        <p>Click "Load Tickets" to fetch tickets from Redis cache.</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                Create Custom Test Ticket
+            </div>
+            <div class="card-body">
+                <form id="real-ticket-form">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" value="Real Test Ticket">
                     </div>
-                </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">This is a real test ticket created for testing.</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Priority</label>
+                        <select class="form-select" id="priority" name="priority">
+                            <option value="0">High</option>
+                            <option value="1">Medium</option>
+                            <option value="2">Low</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Ticket</button>
+                </form>
+                <div id="create-result" class="mt-3"></div>
             </div>
-            
-            <hr>
-            
-            <h4>Close Ticket</h4>
-            <div class="input-group mb-3">
-                <input type="text" id="ticketIdInput" class="form-control" placeholder="Enter Ticket ID">
-                <button class="btn btn-outline-secondary" type="button" id="closeTicketBtn">Close Ticket</button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                Tickets Dashboard
             </div>
-            
-            <div id="closeTicketResult" class="mt-3"></div>
-            
-            <a href="/" class="btn btn-secondary mt-3">Back to Home</a>
+            <div class="card-body">
+                <button id="load-tickets" class="btn btn-primary">Load Tickets</button>
+                <div id="tickets-container" class="mt-3"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -54,161 +89,192 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
-            // Process tickets functionality
-            $('#processTicketsBtn').click(function() {
-                $(this).prop('disabled', true);
-                $('#processResult').html('<div class="alert alert-info">Processing tickets...</div>');
+            // Process tickets button
+            $('#process-tickets').click(function() {
+                $('#process-result').html('<div class="alert alert-info">Processing tickets...</div>');
                 
                 $.ajax({
                     url: '/api/processor/process-tickets',
                     type: 'POST',
-                    success: function(data) {
-                        $('#processResult').html(
-                            '<div class="alert alert-success">' + (data.message || 'Tickets processed successfully') + '</div>'
-                        );
+                    success: function(result) {
+                        $('#process-result').html('<div class="alert alert-success">' + result.message + '</div>');
+                        // Reload tickets
+                        $('#load-tickets').click();
                     },
-                    error: function(error) {
-                        $('#processResult').html(
-                            '<div class="alert alert-danger">Error: ' + 
-                            (error.responseJSON?.message || error.responseText || error.statusText) + 
-                            '</div>'
-                        );
-                    },
-                    complete: function() {
-                        $('#processTicketsBtn').prop('disabled', false);
+                    error: function(xhr) {
+                        $('#process-result').html('<div class="alert alert-danger">Error: ' + xhr.responseText + '</div>');
                     }
                 });
             });
             
-            // Test Redis functionality
-            $('#testRedisBtn').click(function() {
-                $(this).prop('disabled', true);
-                $('#processResult').html('<div class="alert alert-info">Testing Redis connection...</div>');
+            // Check Redis status
+            $('#check-redis').click(function() {
+                $('#redis-status').html('<div class="alert alert-info">Checking Redis connection...</div>');
+                
+                $.ajax({
+                    url: '/api/technicians/redis-status',
+                    type: 'GET',
+                    success: function(result) {
+                        var statusHtml = '<div class="alert ' + (result.isConnected ? 'alert-success' : 'alert-warning') + '">';
+                        statusHtml += '<strong>Connection Status:</strong> ' + (result.isConnected ? 'Connected' : 'Disconnected') + '<br>';
+                        statusHtml += '<strong>Implementation:</strong> ' + result.implementationType + '<br>';
+                        statusHtml += '<strong>Connection Info:</strong> ' + result.connectionInfo;
+                        statusHtml += '</div>';
+                        
+                        $('#redis-status').html(statusHtml);
+                    },
+                    error: function(xhr) {
+                        $('#redis-status').html('<div class="alert alert-danger">Error: ' + xhr.responseText + '</div>');
+                    }
+                });
+            });
+            
+            // Test Redis cache
+            $('#test-redis').click(function() {
+                $('#test-result').html('<div class="alert alert-info">Creating real test ticket in Redis...</div>');
                 
                 $.ajax({
                     url: '/api/technicians/test-redis',
                     type: 'GET',
-                    success: function(data) {
-                        $('#processResult').html(
-                            '<div class="alert alert-success">' + data.message + ' (ID: ' + data.ticketId + ')</div>'
-                        );
-                        // Auto-load tickets after test
-                        $('#loadTicketsBtn').click();
+                    success: function(result) {
+                        $('#test-result').html('<div class="alert alert-success">' + result.message + ' (ID: ' + result.ticketId + ')</div>');
+                        // Reload tickets
+                        $('#load-tickets').click();
                     },
-                    error: function(error) {
-                        $('#processResult').html(
-                            '<div class="alert alert-danger">Redis Test Error: ' + 
-                            (error.responseJSON?.message || error.responseText || error.statusText) + 
-                            '</div>'
-                        );
-                    },
-                    complete: function() {
-                        $('#testRedisBtn').prop('disabled', false);
+                    error: function(xhr) {
+                        $('#test-result').html('<div class="alert alert-danger">Error: ' + xhr.responseText + '</div>');
                     }
                 });
             });
             
-            // Load tickets functionality
-            $('#loadTicketsBtn').click(function() {
-                $(this).prop('disabled', true);
-                $('#ticketsContainer').html('<div class="alert alert-info">Loading tickets...</div>');
+            // Clear mock tickets
+            $('#clear-mock-tickets').click(function() {
+                if (confirm('Are you sure you want to remove all mock tickets from Redis?')) {
+                    $('#test-result').html('<div class="alert alert-info">Clearing mock tickets...</div>');
+                    
+                    $.ajax({
+                        url: '/api/technicians/clear-mock-tickets',
+                        type: 'POST',
+                        success: function(result) {
+                            $('#test-result').html('<div class="alert alert-success">' + result.message + '</div>');
+                            // Reload tickets
+                            $('#load-tickets').click();
+                        },
+                        error: function(xhr) {
+                            $('#test-result').html('<div class="alert alert-danger">Error: ' + xhr.responseText + '</div>');
+                        }
+                    });
+                }
+            });
+            
+            // Create custom test ticket
+            $('#real-ticket-form').submit(function(e) {
+                e.preventDefault();
+                
+                $('#create-result').html('<div class="alert alert-info">Creating ticket...</div>');
+                
+                var formData = {
+                    title: $('#title').val(),
+                    description: $('#description').val(),
+                    priority: parseInt($('#priority').val())
+                };
+                
+                $.ajax({
+                    url: '/api/technicians/create-real-test-ticket',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(formData),
+                    success: function(result) {
+                        $('#create-result').html('<div class="alert alert-success">' + result.message + ' (ID: ' + result.ticketId + ')</div>');
+                        // Reload tickets
+                        $('#load-tickets').click();
+                    },
+                    error: function(xhr) {
+                        $('#create-result').html('<div class="alert alert-danger">Error: ' + xhr.responseText + '</div>');
+                    }
+                });
+            });
+            
+            // Load tickets
+            $('#load-tickets').click(function() {
+                $('#tickets-container').html('<div class="alert alert-info">Loading tickets...</div>');
                 
                 $.ajax({
                     url: '/api/technicians/tickets',
                     type: 'GET',
-                    success: function(data) {
-                        if (data.tickets && data.tickets.length > 0) {
-                            let html = '<div class="list-group">';
+                    success: function(result) {
+                        if (result.tickets && result.tickets.length > 0) {
+                            var html = '<div class="alert alert-success">Found ' + result.count + ' tickets</div>';
+                            html += '<div class="table-responsive"><table class="table table-striped">';
+                            html += '<thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Priority</th><th>Submitted By</th><th>Date</th><th>Actions</th></tr></thead>';
+                            html += '<tbody>';
                             
-                            data.tickets.forEach(function(ticket) {
-                                let priorityClass = 'bg-success';
-                                if (ticket.priority === 0) priorityClass = 'bg-danger';
-                                else if (ticket.priority === 1) priorityClass = 'bg-warning';
+                            result.tickets.forEach(function(ticket) {
+                                var priorityClass = '';
+                                switch(ticket.priority) {
+                                    case 0: priorityClass = 'badge bg-danger'; break; // High
+                                    case 1: priorityClass = 'badge bg-warning text-dark'; break; // Medium
+                                    case 2: priorityClass = 'badge bg-info text-dark'; break; // Low
+                                    default: priorityClass = 'badge bg-secondary';
+                                }
                                 
-                                html += `
-                                    <div class="list-group-item ${ticket.status === 2 ? 'text-muted' : ''}">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <h5 class="mb-1">
-                                                <span class="badge ${priorityClass} me-2">
-                                                    ${ticket.priority === 0 ? 'High' : ticket.priority === 1 ? 'Medium' : 'Low'}
-                                                </span>
-                                                ${ticket.title}
-                                            </h5>
-                                            <small>${new Date(ticket.dateUploaded).toLocaleString()}</small>
-                                        </div>
-                                        <p class="mb-1">${ticket.description}</p>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <small>From: ${ticket.userEmail}</small>
-                                            <small>Status: ${ticket.status === 0 ? 'Open' : ticket.status === 1 ? 'In Progress' : 'Closed'}</small>
-                                            ${ticket.status !== 2 ? 
-                                                `<button class="btn btn-sm btn-secondary close-ticket-btn" data-ticket-id="${ticket.id}">Close Ticket</button>` : 
-                                                ''}
-                                        </div>
-                                    </div>
-                                `;
+                                var statusClass = ticket.status === 0 ? 'badge bg-success' : 'badge bg-secondary';
+                                var statusText = ticket.status === 0 ? 'Open' : 'Closed';
+                                
+                                html += '<tr>';
+                                html += '<td>' + ticket.id + '</td>';
+                                html += '<td>' + ticket.title + '</td>';
+                                html += '<td><span class="' + statusClass + '">' + statusText + '</span></td>';
+                                html += '<td><span class="' + priorityClass + '">' + ['High', 'Medium', 'Low'][ticket.priority] + '</span></td>';
+                                html += '<td>' + ticket.userEmail + '</td>';
+                                html += '<td>' + new Date(ticket.dateUploaded).toLocaleString() + '</td>';
+                                html += '<td>';
+                                
+                                if (ticket.status === 0) { // Open
+                                    html += '<button class="btn btn-sm btn-outline-secondary close-ticket" data-id="' + ticket.id + '">Close</button>';
+                                }
+                                
+                                html += '</td>';
+                                html += '</tr>';
                             });
                             
-                            html += '</div>';
-                            $('#ticketsContainer').html(html);
+                            html += '</tbody></table></div>';
+                            $('#tickets-container').html(html);
                             
-                            // Add event handlers for close buttons
-                            $('.close-ticket-btn').click(function() {
-                                const ticketId = $(this).data('ticket-id');
+                            // Attach event handlers for close buttons
+                            $('.close-ticket').click(function() {
+                                var ticketId = $(this).data('id');
                                 closeTicket(ticketId);
                             });
                         } else {
-                            $('#ticketsContainer').html('<div class="alert alert-warning">No tickets found in Redis cache.</div>');
+                            $('#tickets-container').html('<div class="alert alert-warning">No tickets found</div>');
                         }
                     },
-                    error: function(error) {
-                        $('#ticketsContainer').html(
-                            '<div class="alert alert-danger">Error loading tickets: ' + 
-                            (error.responseJSON?.message || error.responseText || error.statusText) + 
-                            '</div>'
-                        );
-                    },
-                    complete: function() {
-                        $('#loadTicketsBtn').prop('disabled', false);
+                    error: function(xhr) {
+                        $('#tickets-container').html('<div class="alert alert-danger">Error: ' + xhr.responseText + '</div>');
                     }
                 });
-            });
-
-            // Close ticket functionality
-            $('#closeTicketBtn').click(function() {
-                var ticketId = $('#ticketIdInput').val();
-                if (!ticketId) {
-                    $('#closeTicketResult').html(
-                        '<div class="alert alert-danger">Please enter a ticket ID</div>'
-                    );
-                    return;
-                }
-                
-                closeTicket(ticketId);
             });
             
-            // Helper function to close a ticket
+            // Function to close a ticket
             function closeTicket(ticketId) {
-                if (!ticketId) return;
-                
-                $.ajax({
-                    url: '/api/technicians/tickets/' + ticketId + '/close',
-                    type: 'POST',
-                    success: function(data) {
-                        $('#closeTicketResult').html(
-                            '<div class="alert alert-success">' + data.message + '</div>'
-                        );
-                        // Reload tickets after closing
-                        $('#loadTicketsBtn').click();
-                    },
-                    error: function(error) {
-                        $('#closeTicketResult').html(
-                            '<div class="alert alert-danger">Error: ' + 
-                            (error.responseJSON?.message || error.responseText || error.statusText) + 
-                            '</div>'
-                        );
-                    }
-                });
+                if (confirm('Are you sure you want to close ticket #' + ticketId + '?')) {
+                    $.ajax({
+                        url: '/api/technicians/tickets/' + ticketId + '/close',
+                        type: 'POST',
+                        success: function(result) {
+                            alert(result.message);
+                            $('#load-tickets').click(); // Reload the tickets
+                        },
+                        error: function(xhr) {
+                            alert('Error: ' + xhr.responseText);
+                        }
+                    });
+                }
             }
+            
+            // Load tickets on page load
+            $('#load-tickets').click();
         });
     </script>
 }

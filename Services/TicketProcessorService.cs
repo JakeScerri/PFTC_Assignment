@@ -9,13 +9,13 @@ namespace JakeScerriPFTC_Assignment.Services
     public class TicketProcessorService
     {
         private readonly PubSubService _pubSubService;
-        private readonly RedisService _redisService;
+        private readonly IRedisService _redisService;
         private readonly FirestoreService _firestoreService;
         private readonly ILogger<TicketProcessorService> _logger;
 
         public TicketProcessorService(
             PubSubService pubSubService,
-            RedisService redisService,
+            IRedisService redisService,
             FirestoreService firestoreService,
             ILogger<TicketProcessorService> logger)
         {
