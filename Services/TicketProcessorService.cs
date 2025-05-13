@@ -40,10 +40,6 @@ namespace JakeScerriPFTC_Assignment.Services
                     await _redisService.SaveTicketAsync(ticket);
                     
                     _logger.LogInformation($"Ticket {ticket.Id} processed and saved to Redis");
-                    
-                    // Use FirestoreService to ensure we don't get the warning
-                    // Just log that we could archive this if needed
-                    _logger.LogInformation($"Could archive ticket {ticket.Id} using {_firestoreService.GetType().Name} if needed");
                 }
                 else
                 {

@@ -18,6 +18,7 @@ namespace JakeScerriPFTC_Assignment.Services
         private readonly string _topicName;
         private readonly PublisherClient _publisherClient;
         private readonly ILogger<PubSubService> _logger;
+        private static bool _ticketCreated = false; // Static flag to track if we've created a ticket
 
         public PubSubService(IConfiguration configuration, ILogger<PubSubService> logger)
         {
@@ -67,36 +68,88 @@ namespace JakeScerriPFTC_Assignment.Services
             }
         }
         
-        // KU4.1 - Get a ticket from PubSub for processing (mock implementation)
-        // Modified to return null instead of creating mock tickets
-        public async Task<Ticket> GetNextTicketAsync()
-        {
-            try
-            {
-                _logger.LogInformation("Getting next ticket from PubSub (mock implementation)");
-                
-                // Return null to indicate no tickets are available
-                // This avoids creating mock tickets
-                _logger.LogInformation("No tickets in the queue (mock)");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting next ticket from PubSub");
-                return null;
-            }
-        }
+        // KU4.1 - Get a ticket from PubSub for processing
+       // In PubSubService.cs
+public async Task<Ticket> GetNextTicketAsync()
+{
+    try
+    {
+        _logger.LogInformation("Getting next ticket from PubSub");
         
+        // Create the subscription name
+        var subscriptionName = SubscriptionName.FromProjectSubscription(
+            _projectId, 
+            "tickets-topic-jakescerri-sub" // Use the exact subscription ID you created
+        );
+        
+        try
+        {
+            // Create a subscriber client
+            var subscriberClient = await SubscriberServiceApiClient.CreateAsync();
+            
+            // Pull a message from the subscription
+            var pullResponse = await subscriberClient.PullAsync(new PullRequest
+            {
+                MaxMessages = 1,
+                Subscription = subscriptionName.ToString()
+            });
+            
+            // Check if we got any messages
+            if (pullResponse.ReceivedMessages.Count > 0)
+            {
+                var receivedMessage = pullResponse.ReceivedMessages[0];
+                var message = receivedMessage.Message;
+                
+                // Parse the ticket data from the message
+                var ticketJson = message.Data.ToStringUtf8();
+                _logger.LogInformation($"Retrieved message from PubSub: {ticketJson}");
+                
+                var ticket = JsonConvert.DeserializeObject<Ticket>(ticketJson);
+                
+                // Acknowledge the message to remove it from the queue
+                await subscriberClient.AcknowledgeAsync(new AcknowledgeRequest
+                {
+                    Subscription = subscriptionName.ToString(),
+                    AckIds = { receivedMessage.AckId }
+                });
+                
+                _logger.LogInformation($"Retrieved and acknowledged ticket {ticket.Id} from PubSub");
+                return ticket;
+            }
+            
+            _logger.LogInformation("No tickets found in PubSub subscription");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error pulling messages from PubSub subscription");
+            throw;
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error in GetNextTicketAsync");
+        return null;
+    }
+}
+        
+        // Add a method to reset the flag for testing purposes
+        public void ResetTicketCreationFlag()
+        {
+            _ticketCreated = false;
+            _logger.LogInformation("Reset ticket creation flag - will create one more simulated ticket on next call");
+        }
+
         // SE4.6.a - Get tickets by priority (mock implementation)
-        // Modified to return empty list instead of mock tickets
         public async Task<List<Ticket>> GetTicketsByPriorityAsync(TicketPriority priority)
         {
             try
             {
-                _logger.LogInformation($"Getting tickets with priority: {priority} (mock implementation)");
+                _logger.LogInformation($"Getting tickets with priority: {priority}");
                 
-                // Return empty list to avoid creating mock tickets
-                _logger.LogInformation($"No tickets with priority {priority} (mock)");
+                // In a real implementation, we would query PubSub by priority attribute
+                // Since this is just for demonstration, return an empty list
+                _logger.LogInformation($"No tickets with priority {priority}");
                 return new List<Ticket>();
             }
             catch (Exception ex)
@@ -104,25 +157,6 @@ namespace JakeScerriPFTC_Assignment.Services
                 _logger.LogError(ex, $"Error getting tickets with priority {priority}");
                 return new List<Ticket>();
             }
-        }
-        
-        // Keep this method for internal use
-        private Ticket CreateMockTicket(TicketPriority? priority = null)
-        {
-            TicketPriority ticketPriority = priority ?? (TicketPriority)new Random().Next(0, 3);
-            string priorityName = ticketPriority.ToString();
-            
-            return new Ticket
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = $"Mock {priorityName} Ticket",
-                Description = $"This is a mock {priorityName.ToLower()} priority ticket created for testing",
-                UserEmail = "test@example.com",
-                Priority = ticketPriority,
-                Status = TicketStatus.Open,
-                DateUploaded = DateTime.UtcNow.AddHours(-new Random().Next(0, 72)), // Random age up to 3 days
-                ImageUrls = new List<string>()
-            };
         }
     }
 }

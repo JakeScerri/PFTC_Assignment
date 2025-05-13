@@ -11,7 +11,6 @@ namespace JakeScerriPFTC_Assignment.Services
         Task<List<Ticket>> GetTechnicianTicketsAsync();
         Task<Ticket> GetTicketAsync(string ticketId);
         Task CloseTicketAsync(string ticketId, string technicianEmail, FirestoreService firestoreService);
-        Task ClearMockTicketsAsync();
         bool IsConnected();
         string GetConnectionInfo();
     }
