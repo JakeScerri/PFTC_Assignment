@@ -1,79 +1,74 @@
-// Services/EmailService.cs
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using RestSharp;
+using RestSharp.Authenticators;
 using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Threading.Tasks;
+using Google.Cloud.SecretManager.V1;
 
-namespace JakeScerriPFTC_Assignment.Services
+public class EmailService : IEmailService
 {
-    public class EmailService
+    private readonly string _mailgunApiKey;
+    private readonly string _mailgunDomain;
+    private readonly string _fromEmail;
+    private readonly string _fromName;
+
+    public EmailService(IConfiguration configuration)
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _apiKey;
-        private readonly string _domain;
-        private readonly string _from;
-        private readonly ILogger<EmailService> _logger;
+        // Fetch secrets from Google Secret Manager
+        SecretManagerServiceClient secretClient = SecretManagerServiceClient.Create();
+        
+        // The full resource name for the secret (format: projects/{project-id}/secrets/{secret-id}/versions/latest)
+        string mailgunSecretName = $"projects/{configuration["ProjectId"]}/secrets/mailgun-api-key/versions/latest";
+        
+        // Access the secret
+        AccessSecretVersionResponse response = secretClient.AccessSecretVersion(mailgunSecretName);
+        _mailgunApiKey = response.Payload.Data.ToStringUtf8();
+        
+        // Get values from configuration
+        _mailgunDomain = configuration["Mailgun:Domain"];
+        _fromEmail = configuration["Mailgun:FromEmail"];
+        _fromName = configuration["Mailgun:FromName"];
+    }
 
-        public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+    public async Task<bool> SendEmailAsync(string to, string subject, string htmlContent, string correlationId = null)
+    {
+        try
         {
-            _logger = logger;
-            
-            _apiKey = configuration["Mailgun:ApiKey"] ?? "";
-            _domain = configuration["Mailgun:Domain"] ?? "";
-            _from = configuration["Mailgun:From"] ?? "support@ittickets.com";
-            
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-                "Basic", 
-                Convert.ToBase64String(Encoding.ASCII.GetBytes($"api:{_apiKey}"))
-            );
-        }
-
-        public async Task SendEmailAsync(string to, string subject, string body)
-        {
-            try
+            // Create RestClient with Mailgun Base URL
+            var client = new RestClient
             {
-                _logger.LogInformation($"Sending email to {to} with subject: {subject}");
-                
-                var content = new FormUrlEncodedContent(new[]
-                {
-                    new KeyValuePair<string, string>("from", _from),
-                    new KeyValuePair<string, string>("to", to),
-                    new KeyValuePair<string, string>("subject", subject),
-                    new KeyValuePair<string, string>("html", body)
-                });
-                
-                var response = await _httpClient.PostAsync(
-                    $"https://api.mailgun.net/v3/{_domain}/messages", 
-                    content
-                );
-                
-                response.EnsureSuccessStatusCode();
-                
-                _logger.LogInformation($"Email sent successfully to {to}");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error sending email to {to}");
-                throw;
-            }
-        }
+                BaseUrl = new Uri($"https://api.mailgun.net/v3/{_mailgunDomain}"),
+                Authenticator = new HttpBasicAuthenticator("api", _mailgunApiKey)
+            };
 
-        public async Task SendTicketNotificationAsync(string technicianEmail, string ticketId, string title, string priority)
-        {
-            string subject = $"New Ticket: {title} [{priority}]";
-            string body = $@"
-                <h1>New Support Ticket: {title}</h1>
-                <p>A new {priority} priority ticket has been assigned to you.</p>
-                <p>Ticket ID: {ticketId}</p>
-                <p>Please log in to the support portal to view the details and take action.</p>
-                <a href='https://yourapp.com/tickets/{ticketId}'>View Ticket</a>
-            ";
+            // Create request
+            var request = new RestRequest();
+            request.AddParameter("domain", _mailgunDomain, ParameterType.UrlSegment);
+            request.Resource = "{domain}/messages";
+            request.AddParameter("from", $"{_fromName} <{_fromEmail}>");
+            request.AddParameter("to", to);
+            request.AddParameter("subject", subject);
+            request.AddParameter("html", htmlContent);
             
-            await SendEmailAsync(technicianEmail, subject, body);
+            // Add custom X-header for tracking correlation ID if provided
+            if (!string.IsNullOrEmpty(correlationId))
+            {
+                request.AddParameter("h:X-Correlation-ID", correlationId);
+            }
+            
+            request.Method = Method.POST;
+
+            // Send the request
+            var response = await client.ExecuteAsync(request);
+            
+            // Check if successful
+            return response.IsSuccessful;
+        }
+        catch (Exception ex)
+        {
+            // Log exception
+            Console.WriteLine($"Error sending email: {ex.Message}");
+            return false;
         }
     }
 }

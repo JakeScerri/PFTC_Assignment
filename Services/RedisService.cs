@@ -107,7 +107,6 @@ namespace JakeScerriPFTC_Assignment.Services
         }
         
         // KU4.1.a - Read from cache for technician dashboard
-        // Updated to filter out mock tickets
         public virtual async Task<List<Ticket>> GetTechnicianTicketsAsync()
         {
             try
@@ -124,24 +123,18 @@ namespace JakeScerriPFTC_Assignment.Services
                     
                     if (ticket != null)
                     {
-                        // Check if this is a mock ticket
-                        bool isMockTicket = IsMockTicket(ticket);
+                        // KU4.1.a - Filter based on one week old OR still open
+                        bool isRecent = (DateTime.UtcNow - ticket.DateUploaded).TotalDays <= 7;
+                        bool isOpen = ticket.Status == TicketStatus.Open;
                         
-                        if (!isMockTicket)
+                        if (isRecent || isOpen)
                         {
-                            // KU4.1.a - Filter based on one week old OR still open
-                            bool isRecent = (DateTime.UtcNow - ticket.DateUploaded).TotalDays <= 7;
-                            bool isOpen = ticket.Status == TicketStatus.Open;
-                            
-                            if (isRecent || isOpen)
-                            {
-                                tickets.Add(ticket);
-                            }
+                            tickets.Add(ticket);
                         }
                     }
                 }
                 
-                _logger.LogInformation($"Retrieved {tickets.Count} real tickets for technician");
+                _logger.LogInformation($"Retrieved {tickets.Count} tickets for technician");
                 return tickets;
             }
             catch (Exception ex)
@@ -150,15 +143,6 @@ namespace JakeScerriPFTC_Assignment.Services
                 // Return empty list instead of throwing to improve UI experience
                 return new List<Ticket>();
             }
-        }
-        
-        // Helper method to identify mock tickets
-        private bool IsMockTicket(Ticket ticket)
-        {
-            return ticket.UserEmail == "test@example.com" ||
-                   ticket.UserEmail.Contains("mock") ||
-                   ticket.Title.StartsWith("[MOCK]") ||
-                   ticket.Id.StartsWith("test-");
         }
         
         // Helper method to get a single ticket
@@ -223,41 +207,6 @@ namespace JakeScerriPFTC_Assignment.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error closing ticket {ticketId} in Redis");
-                throw;
-            }
-        }
-        
-        // New method to clear mock tickets
-        public virtual async Task ClearMockTicketsAsync()
-        {
-            try
-            {
-                _logger.LogInformation("Clearing mock tickets from Redis");
-                
-                // Get all tickets
-                var ticketIds = await _database.SortedSetRangeByScoreAsync(_openTicketsKey);
-                
-                int count = 0;
-                foreach (var id in ticketIds)
-                {
-                    string ticketId = id.ToString();
-                    var ticket = await GetTicketAsync(ticketId);
-                    
-                    if (ticket != null && IsMockTicket(ticket))
-                    {
-                        // Remove from Redis
-                        await _database.KeyDeleteAsync($"{_ticketPrefix}{ticketId}");
-                        await _database.SortedSetRemoveAsync(_openTicketsKey, ticketId);
-                        _logger.LogInformation($"Removed mock ticket {ticketId} from Redis");
-                        count++;
-                    }
-                }
-                
-                _logger.LogInformation($"Finished clearing {count} mock tickets from Redis");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error clearing mock tickets from Redis");
                 throw;
             }
         }
